@@ -7,7 +7,7 @@ require 'thread'
 
 module Net
   class HTTP
-    attr_reader :socket, :curr_http_version, :concurrency
+    attr_reader :socket, :curr_http_version
 
     module Multi
       class Base
@@ -16,7 +16,6 @@ module Net
         def initialize(reqs)
           @reqs = reqs
           @reses = []
-          @curr_http_version = HTTPVersion
         end
       end
 
@@ -32,9 +31,8 @@ module Net
         end
       end
 
-      class Break < StandardError; end
-
       class IO < Base
+        class Break < StandardError; end
         class Pair < Struct.new(:http, :req); end
 
         def write(req)
