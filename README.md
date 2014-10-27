@@ -47,6 +47,12 @@ p m.reses #=> [#<Net::HTTPOK 200 OK readbody=true>,#<Net::HTTPOK 200 OK readbody
 # Benchmark
 
 ```
+$ ruby server.rb
+```
+
+on other process
+
+```
 $ ruby benchmark.rb
 ```
 

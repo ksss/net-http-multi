@@ -1,5 +1,3 @@
-#! /usr/bin/env ruby
-
 require 'socket'
 require 'uri'
 require 'net/http'
@@ -37,9 +35,10 @@ module Net
 
         def write(req)
           http = HTTP.new(req.uri.host, req.uri.port)
+          # tcp socket open
           http.send :connect
 
-          # socket.write
+          # socket write
           req.exec http.socket, http.curr_http_version, req.path
           Pair.new(http, req)
         end
@@ -58,12 +57,15 @@ module Net
                 ios[0].each do |tcp|
                   pair = http_req_pairs.find{|i| i.http.socket.io == tcp}
                   http, req = pair.http, pair.req
+
+                  # socket read
                   begin
                     res = HTTPResponse.read_new(http.socket)
                     res.decode_content = req.decode_content
                   end while res.kind_of?(HTTPContinue)
                   res.uri = req.uri
                   res.reading_body(http.socket, req.response_body_permitted?) {}
+
                   @reses << res
                   http.socket.close
 
