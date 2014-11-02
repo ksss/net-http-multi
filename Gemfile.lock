@@ -1,11 +1,7 @@
-PATH
-  remote: /vagrant/io-epoll
-  specs:
-    io-epoll (0.1.0)
-
 GEM
   remote: https://rubygems.org/
   specs:
+    io-epoll (0.1.0)
     rack (1.5.2)
     rack-protection (1.5.3)
       rack
@@ -19,5 +15,5 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
-  io-epoll!
+  io-epoll
   sinatra

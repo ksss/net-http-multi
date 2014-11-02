@@ -98,7 +98,7 @@ module Net
 
           epoll = ::IO::Epoll.create
           http_req_pairs.each{|i|
-            epoll.add(i.http.socket.io, ::IO::Epoll::IN)
+            epoll.add(i.http.socket.io, IO::Epoll::IN|IO::Epoll::ET)
           }
           catch do |tag|
             while true
@@ -115,6 +115,7 @@ module Net
                 res.reading_body(http.socket, req.response_body_permitted?) {}
 
                 @reses << res
+
                 epoll.del(ev.data)
                 http.socket.close
 
@@ -123,7 +124,7 @@ module Net
                 else
                   new_pair = write(@reqs.shift)
                   http_req_pairs[http_req_pairs.index{|i| http == i.http}] = new_pair
-                  epoll.add(new_pair.http.socket.io, ::IO::Epoll::IN)
+                  epoll.add(new_pair.http.socket.io, IO::Epoll::IN|IO::Epoll::ET)
                 end
               end
             end
