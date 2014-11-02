@@ -2,6 +2,7 @@ require 'socket'
 require 'uri'
 require 'net/http'
 require 'thread'
+require 'io/epoll'
 
 module Net
   class HTTP
@@ -9,29 +10,16 @@ module Net
 
     module Multi
       class Base
-        attr_accessor :reses
+        class Pair < Struct.new(:http, :req); end
+        class Break < StandardError; end
+
+        attr_accessor :req_send, :reses
 
         def initialize(reqs)
           @reqs = reqs
+          @req_send = []
           @reses = []
         end
-      end
-
-      class Sync < Base
-        def run
-          @reses = []
-          @reqs.each do |req|
-            @reses << HTTP.start(req.uri.host, req.uri.port) do |http|
-              http.request req
-            end
-          end
-          self
-        end
-      end
-
-      class IO < Base
-        class Break < StandardError; end
-        class Pair < Struct.new(:http, :req); end
 
         def write(req)
           http = HTTP.new(req.uri.host, req.uri.port)
@@ -40,11 +28,27 @@ module Net
 
           # socket write
           req.exec http.socket, http.curr_http_version, req.path
+          @req_send << req
           Pair.new(http, req)
         end
+      end
 
+      class Sync < Base
         def run
-          http_req_pairs = @reqs.shift(64).map do |req|
+          @reses = []
+          @reqs.each do |req|
+            @reses << HTTP.start(req.uri.host, req.uri.port) do |http|
+              @req_send << req
+              http.request req
+            end
+          end
+          self
+        end
+      end
+
+      class Select < Base
+        def run
+          http_req_pairs = @reqs.shift(128).map do |req|
             write(req)
           end
 
@@ -86,25 +90,71 @@ module Net
         end
       end
 
+      class Epoll < Base
+        def run
+          http_req_pairs = @reqs.shift(128).map do |req|
+            write(req)
+          end
+
+          epoll = ::IO::Epoll.create
+          http_req_pairs.each{|i|
+            epoll.add(i.http.socket.io, ::IO::Epoll::IN)
+          }
+          catch do |tag|
+            while true
+              epoll.wait.each do |ev|
+                pair = http_req_pairs.find{|i| i.http.socket.io == ev.data}
+                http, req = pair.http, pair.req
+
+                # socket read
+                begin
+                  res = HTTPResponse.read_new(http.socket)
+                  res.decode_content = req.decode_content
+                end while res.kind_of?(HTTPContinue)
+                res.uri = req.uri
+                res.reading_body(http.socket, req.response_body_permitted?) {}
+
+                @reses << res
+                epoll.del(ev.data)
+                http.socket.close
+
+                if @reqs.empty?
+                  throw tag if epoll.events.length == 0
+                else
+                  new_pair = write(@reqs.shift)
+                  http_req_pairs[http_req_pairs.index{|i| http == i.http}] = new_pair
+                  epoll.add(new_pair.http.socket.io, ::IO::Epoll::IN)
+                end
+              end
+            end
+          end
+          self
+        end
+      end
+
       class Thread < Base
+        attr_reader :threads, :master
         def initialize(reqs, concurrency=16)
           super reqs
           @concurrency = concurrency
+          @master = nil
+          @threads = []
         end
 
         def run
           q = Queue.new
-          master = ::Thread.start {
+          @master = ::Thread.start {
             @reqs.each do |req|
               q.push req
             end
           }
-          threads = Array.new(@concurrency) do
+          @threads = Array.new(@concurrency) do
             ::Thread.start {
               loop do
                 break if q.size == 0
                 req = q.pop
                 res = HTTP.new(req.uri.host, req.uri.port).start do |http|
+                  @req_send << req
                   http.request req
                 end
                 @reses << res
@@ -112,10 +162,10 @@ module Net
             }
           end
 
-          threads.each do |t|
+          @threads.each do |t|
             t.join
           end
-          master.join
+          @master.join
           self
         end
       end
