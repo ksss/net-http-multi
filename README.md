@@ -50,20 +50,30 @@ p m.reses #=> [#<Net::HTTPOK 200 OK readbody=true>,#<Net::HTTPOK 200 OK readbody
 $ ruby server.rb
 ```
 
-on other process
+and other process
 
 ```
 $ ruby benchmark.rb
 ```
 
 ```
-Net::HTTP::Multi::Sync: 68res/sec, time: 1.007394s
-ps -o rss=: 10124
-memsize_of_all: 3432044
-Net::HTTP::Multi::IO: 611res/sec, time: 1.008079s
-ps -o rss=: 13156
-memsize_of_all: 3862576
-Net::HTTP::Multi::Thread: 566res/sec, time: 1.010559s
-ps -o rss=: 14748
-memsize_of_all: 21919738
+ps -o rss=: 23368
+memsize_of_all: 8427273
+
+Epoll 447req/sec
+Epoll 319res/sec
+ps -o rss=: 23616
+memsize_of_all: 8695473
+Select 437req/sec
+Select 309res/sec
+ps -o rss=: 23616
+memsize_of_all: 8687011
+Sync 63req/sec
+Sync 63res/sec
+ps -o rss=: 23616
+memsize_of_all: 8494221
+Thread 333req/sec
+Thread 317res/sec
+ps -o rss=: 29040
+memsize_of_all: 26547714
 ```
